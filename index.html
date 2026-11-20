@@ -116,9 +116,19 @@
 <script type="module">
 // ================== NASTAVENÍ ==================
 // Sem patří nastavení projektu z Firebase konzole (Project settings → Your apps → Web app → Config).
-const firebaseConfig = null;
+const firebaseConfig = {
+  apiKey: "AIzaSyAetuX2U43jS388XD9tllhYXZow0fk2w4I",
+  authDomain: "christmas-hat-b7f87.firebaseapp.com",
+  databaseURL: "https://christmas-hat-b7f87-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "christmas-hat-b7f87",
+  storageBucket: "christmas-hat-b7f87.firebasestorage.app",
+  messagingSenderId: "847626620347",
+  appId: "1:847626620347:web:04f6e4521d59434b1b089e"
+};
 // Název losování v databázi. Pro nové losování (např. příští rok) stačí změnit.
-const DRAW_ID = "vanoce2026";
+// Zkušební režim: přidej na konec odkazu #zkouska – losuje se z jiného, cvičného klobouku.
+const TEST = location.hash === "#zkouska";
+const DRAW_ID = TEST ? "zkouska" : "vanoce2026";
 // ===============================================
 
 const NAMES = ["Eva", "Katka", "Děda", "Babička", "Martin", "Hanka"];
@@ -266,6 +276,8 @@ async function start() {
   hat.addEventListener("click", () => { if (!drawBtn.disabled && !drawBtn.classList.contains("hidden")) draw(); });
 }
 
+if (TEST) document.querySelector("h1").insertAdjacentHTML("afterend",
+  '<p style="background:#f2c14e;color:#222;border-radius:10px;padding:8px;font-weight:700">🧪 ZKUŠEBNÍ REŽIM – tohle losování se nepočítá</p>');
 const snow = $("snow");
 for (let k = 0; k < 28; k++) {
   const s = document.createElement("span"); s.textContent = "❄";
