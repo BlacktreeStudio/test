@@ -1,0 +1,14 @@
+{
+  "rules": {
+    "draws": {
+      "$drawId": {
+        ".read": true,
+        ".write": "newData.exists() && (!data.exists() || (newData.child('drawn').val() > data.child('drawn').val() && newData.child('papers').val() < data.child('papers').val()))",
+        ".validate": "newData.hasChildren(['drawn', 'papers'])",
+        "drawn":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 63" },
+        "papers": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 63" },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}
