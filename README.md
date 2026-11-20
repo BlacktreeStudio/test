@@ -12,7 +12,7 @@ The database stores only *who has already drawn* and *which papers are left in t
 5. GitHub repo → **Settings → Pages** → Source: *Deploy from a branch*, branch with `index.html`, folder `/ (root)`. Share the resulting link in Signal.
 
 ## Reset / new draw
-Delete the `draws/vanoce2026` node in the Realtime Database console, or change `DRAW_ID` in `index.html`.
+Delete the `draws/vanoce2026` node in the Realtime Database console (or change `DRAW_ID`). Phones forget their old paper automatically once the node is gone.
 
 ## Test mode
 Open the link with `#zkouska` at the end: it draws from a separate practice hat (`draws/zkouska`). Delete that node in the console afterwards.

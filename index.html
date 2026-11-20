@@ -146,6 +146,7 @@ function feasible(people, papers) {
 const memKey = "vanocni-klobouk-" + DRAW_ID;
 const remember = m => { try { localStorage.setItem(memKey, JSON.stringify(m)); } catch {} };
 const recall = () => { try { return JSON.parse(localStorage.getItem(memKey)); } catch { return null; } };
+const forget = () => { try { localStorage.removeItem(memKey); } catch {} };
 
 let hatState = null, busy = false, finished = false;
 
@@ -218,6 +219,13 @@ async function start() {
   api.onValue(ref, snap => {
     clearTimeout(timer);
     hatState = snap.val() || { drawn: 0, papers: ALL };
+    // Klobouk byl vynulován (v databázi tohle jméno ještě nelosovalo) → zapomenout starý papírek.
+    const mine = recall();
+    if (mine && !(hatState.drawn >> mine.me & 1)) {
+      forget(); finished = false;
+      note.className = "note"; $("pickStep").classList.remove("hidden"); drawBtn.classList.remove("hidden");
+      hint.textContent = "Sám sebe si vytáhnout nemůžeš. Jakmile losuješ, tvé jméno se všem ostatním zamkne.";
+    }
     render();
   }, () => { clearTimeout(timer); fail("Do databáze nejde číst. Zkontroluj pravidla (Rules) ve Firebase."); });
 
