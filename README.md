@@ -16,3 +16,11 @@ Delete the `draws/vanoce2026` node in the Realtime Database console, or change `
 
 ## Test mode
 Open the link with `#zkouska` at the end: it draws from a separate practice hat (`draws/zkouska`). Delete that node in the console afterwards.
+
+## Deploy to Firebase Hosting (from your own computer)
+```
+npm install -g firebase-tools
+firebase login
+firebase deploy
+```
+App: https://christmas-hat-b7f87.web.app — `firebase deploy` also uploads `database.rules.json`.
