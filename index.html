@@ -163,6 +163,13 @@ const forget = () => { try { localStorage.removeItem(memKey); } catch {} };
 
 let hatState = null, busy = false, finished = false;
 
+// Je stav klobouku v pořádku? (počet losujících + papírků v klobouku musí dát 6)
+const valid = s => s && Number.isInteger(s.drawn) && Number.isInteger(s.papers)
+  && s.drawn >= 0 && s.drawn <= ALL && s.papers >= 0 && s.papers <= ALL
+  && pop(s.drawn) + pop(s.papers) === N && feasible(ALL & ~s.drawn, s.papers);
+const BROKEN = `⚠️ <b>Klobouk je poškozený</b> (v databázi zůstala jen část dat).<br>
+  <small>Oprava: Firebase konzole → Realtime Database → Data → smaž celé <b>draws</b>.</small>`;
+
 function renderPapers(count) {
   papersEl.innerHTML = "";
   for (let k = 0; k < count; k++) {
@@ -232,6 +239,7 @@ async function start() {
   api.onValue(ref, snap => {
     clearTimeout(timer);
     hatState = snap.val() || { drawn: 0, papers: ALL };
+    if (!valid(hatState)) { hatState = null; who.disabled = true; drawBtn.disabled = true; fail(BROKEN); return; }
     // Klobouk byl vynulován (v databázi tohle jméno ještě nelosovalo) → zapomenout starý papírek.
     const mine = recall();
     if (mine && !(hatState.drawn >> mine.me & 1)) {
@@ -258,6 +266,7 @@ async function start() {
       // takže ani dva lidé ve stejnou chvíli nemůžou vytáhnout stejný papírek.
       const res = await api.runTransaction(ref, cur => {
         const s = cur || { drawn: 0, papers: ALL };
+        if (!valid(s)) { reason = "broken"; return; }
         if (s.drawn >> me & 1) { reason = "taken"; return; }
         const people = ALL & ~s.drawn & ~(1 << me);
         const opts = [];
@@ -271,7 +280,8 @@ async function start() {
       if (!res.committed) {
         busy = false;
         render();
-        fail(reason === "taken" ? `<b>${NAMES[me]}</b> už losoval/a. Pokud jsi to nebyl/a ty, dej vědět ostatním.` : "Klobouk je prázdný.");
+        fail(reason === "taken" ? `<b>${NAMES[me]}</b> už losoval/a. Pokud jsi to nebyl/a ty, dej vědět ostatním.`
+           : reason === "broken" ? BROKEN : "Losování se nepovedlo. Zkus to prosím znovu.");
         return;
       }
     } catch (e) {
