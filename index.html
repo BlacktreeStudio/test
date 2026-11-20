@@ -70,6 +70,15 @@
   .result strong { color: var(--gold); font-size: 1.25rem; }
   .hint { font-size: .85rem; opacity: .75; margin-top: 14px; line-height: 1.4; }
   .hidden { display: none !important; }
+  input.code {
+    width: 100%; font-size: 1.3rem; letter-spacing: 2px; text-align: center; text-transform: uppercase;
+    padding: 12px; border-radius: 12px; border: 2px solid var(--gold); background: var(--paper); color: var(--ink);
+  }
+  .codebox { margin-top: 14px; padding: 14px; border-radius: 14px; background: rgba(0,0,0,.25); border: 1px dashed var(--gold); }
+  .codebox .big { font-size: 1.6rem; font-weight: 800; letter-spacing: 3px; color: var(--gold); user-select: all; margin: 6px 0; }
+  .step { text-align: left; font-size: .95rem; line-height: 1.45; }
+  .err { color: #ffb4a8; margin-top: 8px; min-height: 1.2em; font-size: .95rem; }
+  .or { margin: 14px 0 0; opacity: .7; font-size: .9rem; }
 </style>
 </head>
 <body>
@@ -79,189 +88,246 @@
   <p class="sub">Vyber své jméno a vytáhni si z klobouku papírek.<br>Komu padne tvůj los, tomu letos dáváš dárek.</p>
 
   <div class="card">
-    <div id="pickStep">
-      <label for="who">Kdo jsi?</label>
-      <select id="who">
-        <option value="">— vyber své jméno —</option>
-      </select>
+    <!-- 1) Vložení kódu klobouku -->
+    <div id="codeStep">
+      <div class="step">
+        <b>Losuje se postupně, jeden po druhém.</b><br>
+        Vlož <b>poslední kód klobouku</b> ze skupiny na Signalu:
+      </div>
+      <input class="code" id="codeIn" placeholder="XXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <div class="err" id="codeErr"></div>
+      <button id="codeBtn">Pokračovat ➜</button>
+      <p class="or">Jsi úplně první, kdo losuje?</p>
+      <button id="newBtn" class="ghost">Začít nové losování</button>
     </div>
 
-    <div class="stage">
-      <div class="note" id="note"><b id="noteName"></b></div>
-      <div class="papers" id="papers"></div>
-      <svg class="hat" id="hat" viewBox="0 0 220 170" role="img" aria-label="Klobouk">
-        <ellipse cx="110" cy="150" rx="105" ry="18" fill="#111"/>
-        <path d="M45 150 L55 30 Q110 10 165 30 L175 150 Z" fill="#1b1b1b"/>
-        <ellipse cx="110" cy="30" rx="55" ry="12" fill="#2a2a2a"/>
-        <ellipse cx="110" cy="30" rx="46" ry="8" fill="#000"/>
-        <path d="M50 112 L170 112 L172 132 L48 132 Z" fill="#c0392b"/>
-        <circle cx="150" cy="122" r="7" fill="#f2c14e"/>
-        <path d="M143 112 l-8 -14 l10 4 z M157 112 l8 -14 l-10 4 z" fill="#2e8b57"/>
-      </svg>
+    <!-- 2) Losování -->
+    <div id="drawStep" class="hidden">
+      <div id="pickStep">
+        <label for="who">Kdo jsi?</label>
+        <select id="who"><option value="">— vyber své jméno —</option></select>
+      </div>
+
+      <div class="stage">
+        <div class="note" id="note"><b id="noteName"></b></div>
+        <div class="papers" id="papers"></div>
+        <svg class="hat" id="hat" viewBox="0 0 220 170" role="img" aria-label="Klobouk">
+          <ellipse cx="110" cy="150" rx="105" ry="18" fill="#111"/>
+          <path d="M45 150 L55 30 Q110 10 165 30 L175 150 Z" fill="#1b1b1b"/>
+          <ellipse cx="110" cy="30" rx="55" ry="12" fill="#2a2a2a"/>
+          <ellipse cx="110" cy="30" rx="46" ry="8" fill="#000"/>
+          <path d="M50 112 L170 112 L172 132 L48 132 Z" fill="#c0392b"/>
+          <circle cx="150" cy="122" r="7" fill="#f2c14e"/>
+          <path d="M143 112 l-8 -14 l10 4 z M157 112 l8 -14 l-10 4 z" fill="#2e8b57"/>
+        </svg>
+      </div>
+
+      <div class="result" id="result" aria-live="polite"></div>
+      <button id="drawBtn" disabled>Sáhnout do klobouku 🎩</button>
+
+      <div id="after" class="hidden">
+        <div class="codebox">
+          <div id="nextText"></div>
+          <div class="big" id="newCode"></div>
+          <button id="copyBtn">📋 Zkopírovat zprávu pro skupinu</button>
+          <div class="err" id="copyMsg" style="color:#cfe9d8"></div>
+        </div>
+      </div>
+      <p class="hint" id="hint">Sám sebe si vytáhnout nemůžeš. Tvůj papírek uvidíš jen ty – nikde se neukládá.</p>
     </div>
-
-    <div class="result" id="result" aria-live="polite"></div>
-
-    <button id="drawBtn" disabled>Sáhnout do klobouku 🎩</button>
-    <button id="doneBtn" class="ghost hidden">Hotovo – schovat papírek</button>
-    <p class="hint" id="hint">Každý losuje jen jednou. Sám sebe si vytáhnout nemůžeš.</p>
   </div>
 </main>
 
 <script>
 (() => {
-  // Jména v klobouku (pořadí neměnit – na něm závisí losování)
   const NAMES = ["Eva", "Katka", "Děda", "Babička", "Martin", "Hanka"];
+  const N = NAMES.length, ALL = (1 << N) - 1;
 
-  // Pevné tajné "zamíchání" klobouku pro letošní Vánoce.
-  // Díky tomu dostane každý stejný výsledek na jakémkoli telefonu
-  // a nikdo si nemůže vytáhnout sám sebe.
-  const SEED = 1353776920;
-  const STORE_KEY = "vanocni-klobouk-" + SEED;
+  // ---------- Kód klobouku ----------
+  // Kód obsahuje JEN: číslo hry, kdo už losoval a které papírky jsou ještě v klobouku.
+  // Kdo si koho vytáhl, se nikam neukládá – zná to jen ten, kdo losoval.
+  // Kód je navíc pokaždé jinak zamíchaný, aby z porovnání kódů nešlo nic vyčíst.
+  const ABC = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // 32 znaků, bez 0/O/1/I
+  const KEY = 0x5A17C0DE;
+  const rand32 = () => crypto.getRandomValues(new Uint32Array(1))[0];
+  const randInt = n => rand32() % n; // n je malé, zkreslení zanedbatelné
 
-  function rng(seed) { // mulberry32
-    let a = seed >>> 0;
+  function stream(nonce) { // mulberry32
+    let a = (KEY ^ Math.imul(nonce + 1, 0x9E3779B1)) >>> 0;
     return () => {
-      a = (a + 0x6D2B79F5) >>> 0;
-      let t = a;
+      a = (a + 0x6D2B79F5) >>> 0; let t = a;
       t = Math.imul(t ^ (t >>> 15), t | 1);
       t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      return (t ^ (t >>> 14)) >>> 0;
     };
   }
+  const check = (g, d, p) => ((g * 31 + d * 7 + p * 13 + (g >>> 10) * 3) & 0xFF);
 
-  // Náhodné přiřazení, kde nikdo nedostane sám sebe (a vždy to "vyjde" i poslednímu).
-  function buildDraw() {
-    const r = rng(SEED);
-    while (true) {
-      const p = NAMES.map((_, i) => i);
-      for (let i = p.length - 1; i > 0; i--) {
-        const j = Math.floor(r() * (i + 1));
-        [p[i], p[j]] = [p[j], p[i]];
-      }
-      if (p.every((v, i) => v !== i)) return p;
+  function encode(s) {
+    const nonce = rand32() & 0x7FFF;                     // 15 bitů
+    let payload = (BigInt(s.game) << 20n) | (BigInt(s.drawn) << 14n) | (BigInt(s.papers) << 8n) | BigInt(check(s.game, s.drawn, s.papers));
+    const r = stream(nonce);
+    const mask = (BigInt(r()) << 8n) | BigInt(r() & 0xFF);  // 40 bitů
+    let v = (BigInt(nonce) << 40n) | (payload ^ mask);       // 55 bitů
+    let out = "";
+    for (let i = 0; i < 11; i++) { out = ABC[Number(v & 31n)] + out; v >>= 5n; }
+    return out.slice(0, 3) + "-" + out.slice(3, 7) + "-" + out.slice(7);
+  }
+
+  function decode(code) {
+    const c = code.toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/O/g, "0").replace(/[I1]/g, "L");
+    if (c.length !== 11) return null;
+    let v = 0n;
+    for (const ch of c) { const k = ABC.indexOf(ch); if (k < 0) return null; v = (v << 5n) | BigInt(k); }
+    const nonce = Number(v >> 40n);
+    const r = stream(nonce);
+    const mask = (BigInt(r()) << 8n) | BigInt(r() & 0xFF);
+    const p = (v & ((1n << 40n) - 1n)) ^ mask;
+    const s = { game: Number(p >> 20n), drawn: Number((p >> 14n) & 63n), papers: Number((p >> 8n) & 63n) };
+    if (Number(p & 255n) !== check(s.game, s.drawn, s.papers)) return null;
+    if (pop(s.drawn) + pop(s.papers) !== N) return null;
+    return s;
+  }
+  const pop = m => { let c = 0; for (; m; m &= m - 1) c++; return c; };
+
+  // Lze zbylé lidi a zbylé papírky spárovat tak, aby nikdo neměl sám sebe?
+  function feasible(people, papers) {
+    if (!people) return true;
+    const i = 31 - Math.clz32(people & -people);
+    for (let p = 0; p < N; p++)
+      if ((papers >> p & 1) && p !== i && feasible(people & ~(1 << i), papers & ~(1 << p))) return true;
+    return false;
+  }
+
+  // ---------- Pamatování vlastního losu (jen na tomto zařízení) ----------
+  const memKey = g => "vanocni-klobouk-" + g;
+  function remember(g, data) { try { localStorage.setItem(memKey(g), JSON.stringify(data)); } catch {} }
+  function recall(g) { try { return JSON.parse(localStorage.getItem(memKey(g))); } catch { return null; } }
+
+  // ---------- UI ----------
+  const $ = id => document.getElementById(id);
+  const who = $("who"), drawBtn = $("drawBtn"), hat = $("hat"), note = $("note"), noteName = $("noteName");
+  const result = $("result"), papersEl = $("papers"), hint = $("hint");
+  let state = null;
+
+  function renderPapers(count) {
+    papersEl.innerHTML = "";
+    for (let k = 0; k < count; k++) {
+      const el = document.createElement("i");
+      el.style.left = (8 + k * (100 / Math.max(count, 1))) + "px";
+      el.style.transform = `rotate(${(k - count / 2) * 9}deg)`;
+      papersEl.appendChild(el);
     }
   }
-  const DRAW = buildDraw();
 
-  // Kdo už na tomto zařízení losoval
-  function loadState() {
-    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch { return {}; }
-  }
-  function saveState(s) {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch {}
-  }
-  let state = loadState(); // { drawn: [indexy], me: index }
-  state.drawn = state.drawn || [];
-
-  const $ = id => document.getElementById(id);
-  const who = $("who"), drawBtn = $("drawBtn"), doneBtn = $("doneBtn"), hat = $("hat");
-  const note = $("note"), noteName = $("noteName"), result = $("result"), papers = $("papers"), hint = $("hint");
-
-  function renderSelect() {
+  function openHat(s) {
+    state = s;
+    $("codeStep").classList.add("hidden");
+    $("drawStep").classList.remove("hidden");
+    note.className = "note"; result.innerHTML = ""; $("after").classList.add("hidden");
     who.length = 1;
     NAMES.forEach((n, i) => {
       const o = document.createElement("option");
-      o.value = i;
-      const used = state.drawn.includes(i);
-      o.textContent = used ? n + " (už losoval/a)" : n;
-      o.disabled = used;
+      o.value = i; o.disabled = !!(s.drawn >> i & 1);
+      o.textContent = o.disabled ? n + " (už losoval/a)" : n;
       who.appendChild(o);
     });
-  }
-
-  function renderPapers(exclude) {
-    papers.innerHTML = "";
-    const count = NAMES.length - (exclude == null ? 0 : 1);
-    for (let k = 0; k < count; k++) {
-      const el = document.createElement("i");
-      el.style.left = (8 + k * (100 / count)) + "px";
-      el.style.transform = `rotate(${(k - count / 2) * 9}deg)`;
-      papers.appendChild(el);
+    renderPapers(pop(s.papers));
+    const mine = recall(s.game);
+    if (s.drawn === ALL) {
+      $("pickStep").classList.add("hidden"); drawBtn.classList.add("hidden");
+      result.innerHTML = "<strong>Všichni už mají vylosováno! 🎉</strong><br>Veselé Vánoce!";
+      renderPapers(0);
+      if (mine) hint.innerHTML = againLink(mine);
+    } else if (mine) {
+      hint.innerHTML = `Na tomto telefonu už losoval/a <b>${NAMES[mine.me]}</b>. ` + againLink(mine);
     }
+    bindAgain(mine);
   }
+  const againLink = m => `<br><a href="#" id="again" style="color:var(--gold)">Ukázat znovu můj papírek</a>`;
+  function bindAgain(m) { const a = $("again"); if (a) a.onclick = e => { e.preventDefault(); showResult(m, false); }; }
 
-  function reset() {
-    note.className = "note"; noteName.textContent = ""; result.innerHTML = "";
-    drawBtn.classList.remove("hidden"); doneBtn.classList.add("hidden");
-    $("pickStep").classList.remove("hidden");
-    who.value = ""; drawBtn.disabled = true;
-    renderSelect(); renderPapers(null);
-    if (state.me != null) {
-      hint.innerHTML = `Na tomto telefonu už losoval/a <b>${NAMES[state.me]}</b>.<br>
-        <a href="#" id="again" style="color:var(--gold)">Zapomněl/a jsi, komu dáváš? Ukaž znovu můj papírek</a>`;
-      $("again").onclick = e => { e.preventDefault(); show(state.me, false); };
-    } else {
-      hint.textContent = "Každý losuje jen jednou. Sám sebe si vytáhnout nemůžeš.";
-    }
-  }
-
-  function show(me, animate) {
-    const giftee = NAMES[DRAW[me]];
-    $("pickStep").classList.add("hidden");
-    drawBtn.classList.add("hidden");
-    noteName.textContent = giftee;
-    result.innerHTML = "";
+  function showResult(m, animate) {
+    $("pickStep").classList.add("hidden"); drawBtn.classList.add("hidden");
+    noteName.textContent = NAMES[m.giftee]; result.innerHTML = "";
+    const finish = () => {
+      result.innerHTML = `${NAMES[m.me]}, letos dáváš dárek:<br><strong>🎁 ${NAMES[m.giftee]} 🎁</strong><br><small>Pssst… nikomu to neprozrazuj!</small>`;
+      if (m.next) {
+        $("after").classList.remove("hidden");
+        $("newCode").textContent = m.next;
+        $("nextText").innerHTML = m.last
+          ? "Byl/a jsi poslední – losování je hotové! 🎉 Pošli do skupiny tento závěrečný kód:"
+          : "<b>Teď pošli do skupiny nový kód klobouku</b>, aby mohl losovat další:";
+      }
+      hint.textContent = "Tvůj papírek vidíš jen ty. Kód klobouku neprozrazuje, kdo si koho vytáhl.";
+    };
     if (animate) {
       hat.classList.remove("shake"); void hat.offsetWidth; hat.classList.add("shake");
-      setTimeout(() => {
-        note.className = "note out";
-        if (papers.lastChild) papers.lastChild.style.opacity = 0;
-      }, 800);
-      setTimeout(() => finish(me, giftee), 2300);
-    } else {
-      note.className = "note static";
-      finish(me, giftee);
-    }
+      setTimeout(() => { note.className = "note out"; if (papersEl.lastChild) papersEl.lastChild.style.opacity = 0; }, 800);
+      setTimeout(finish, 2300);
+    } else { note.className = "note static"; finish(); }
   }
-
-  function finish(me, giftee) {
-    result.innerHTML = `${NAMES[me]}, letos dáváš dárek:<br><strong>🎁 ${giftee} 🎁</strong><br>
-      <small>Pssst… nikomu to neprozrazuj!</small>`;
-    doneBtn.classList.remove("hidden");
-    hint.textContent = "";
-  }
-
-  who.addEventListener("change", () => {
-    const i = who.value === "" ? null : +who.value;
-    drawBtn.disabled = i == null;
-    renderPapers(i);
-  });
 
   function draw() {
-    if (who.value === "") {
-      result.textContent = "Nejdřív vyber své jméno 🙂";
-      return;
-    }
+    if (who.value === "" || !state) return;
     const me = +who.value;
-    if (state.drawn.includes(me)) return;
-    if (state.me != null && state.me !== me) {
-      result.innerHTML = `Z tohoto telefonu už losoval/a <b>${NAMES[state.me]}</b>.<br>Ať si další člověk vylosuje na svém telefonu.`;
+    if (state.drawn >> me & 1) return;
+    const prev = recall(state.game);
+    if (prev && prev.me !== me) {
+      result.innerHTML = `Z tohoto telefonu už losoval/a <b>${NAMES[prev.me]}</b>.<br>Každý losuje na svém telefonu.`;
       return;
     }
-    state.drawn.push(me);
-    state.me = me;
-    saveState(state);
-    show(me, true);
+    if (prev && prev.me === me) { showResult(prev, false); return; } // znovu losovat nejde
+    const people = ALL & ~state.drawn & ~(1 << me);
+    const options = [];
+    for (let p = 0; p < N; p++)
+      if ((state.papers >> p & 1) && p !== me && feasible(people, state.papers & ~(1 << p))) options.push(p);
+    const giftee = options[randInt(options.length)];
+    const ns = { game: state.game, drawn: state.drawn | (1 << me), papers: state.papers & ~(1 << giftee) };
+    const m = { me, giftee, next: encode(ns), last: ns.drawn === ALL };
+    remember(state.game, m);
+    showResult(m, true);
   }
 
+  $("codeBtn").onclick = () => {
+    const s = decode($("codeIn").value);
+    if (!s) { $("codeErr").textContent = "Tenhle kód nesedí. Zkontroluj, že jsi ho opsal/a celý."; return; }
+    $("codeErr").textContent = ""; openHat(s);
+  };
+  $("codeIn").addEventListener("keydown", e => { if (e.key === "Enter") $("codeBtn").click(); });
+
+  $("newBtn").onclick = () => {
+    if ($("newBtn").dataset.sure !== "1") {
+      $("newBtn").dataset.sure = "1";
+      $("newBtn").textContent = "Opravdu? Klepni znovu – jen pokud ještě nikdo nelosoval";
+      return;
+    }
+    openHat({ game: rand32() & 0xFFFFF, drawn: 0, papers: ALL });
+  };
+
+  $("copyBtn").onclick = async () => {
+    const code = $("newCode").textContent;
+    const text = recall(state.game)?.last
+      ? `🎄 Losování je hotové, všichni mají vylosováno! (kód ${code})`
+      : `🎩 Vylosováno! Další na řadě – kód klobouku: ${code}`;
+    try { await navigator.clipboard.writeText(text); $("copyMsg").textContent = "Zkopírováno ✔ Vlož to do skupiny na Signalu."; }
+    catch { $("copyMsg").textContent = "Kopírování nejde – přepiš prosím kód ručně."; }
+  };
+
+  who.addEventListener("change", () => { drawBtn.disabled = who.value === ""; });
   drawBtn.addEventListener("click", draw);
   hat.addEventListener("click", () => { if (!drawBtn.disabled && !drawBtn.classList.contains("hidden")) draw(); });
-  doneBtn.addEventListener("click", reset);
 
-  // Sníh
+  const h = decodeURIComponent(location.hash.slice(1));
+  if (h) $("codeIn").value = h;
+
   const snow = $("snow");
   for (let k = 0; k < 28; k++) {
-    const s = document.createElement("span");
-    s.textContent = "❄";
-    s.style.left = Math.random() * 100 + "vw";
-    s.style.fontSize = (8 + Math.random() * 14) + "px";
-    s.style.animationDuration = (6 + Math.random() * 10) + "s";
-    s.style.animationDelay = (-Math.random() * 16) + "s";
+    const s = document.createElement("span"); s.textContent = "❄";
+    s.style.left = Math.random() * 100 + "vw"; s.style.fontSize = (8 + Math.random() * 14) + "px";
+    s.style.animationDuration = (6 + Math.random() * 10) + "s"; s.style.animationDelay = (-Math.random() * 16) + "s";
     snow.appendChild(s);
   }
-
-  reset();
 })();
 </script>
 </body>
